@@ -4,15 +4,21 @@ let size = 500;
 
 let NOISE_ZOOM = size*0.5;
 
-let FPS = 10
+let FPS = 20
 let TOTAL_TIME = 10
 
 let seed = Math.floor(Math.random()*1000);
 
+let BACKGROUND_COLOR = 0
+
+let c0;
+let c1;
+let c2;
+
 function setup() {
 	// put setup code here
 	createCanvas(size, size);
-	background(255);
+	background(BACKGROUND_COLOR);
 	frameRate(FPS);
 	colorMode(HSB, 100);
 	// colorMode(HSB, 255)
@@ -27,6 +33,11 @@ function setup() {
 
 	
 	strokeCap(SQUARE)
+	blendMode(BLEND)
+
+	c0 = color(Math.random()*100, Math.random()*100, 100);
+	c1 = color(Math.random()*100, Math.random()*100, 100);
+	c2 = color(Math.random()*100, Math.random()*100, 100);
 }
 
 
@@ -63,49 +74,6 @@ function getVector(p1, p2){
 	return createVector(p2[0] - p1[0], p2[1] - p1[1]);
 }
 
-//previous implementation, changed to just use a package
-function getControlPoint(index, arr){
-	//the point we're building off
-	let px = arr[index][0];
-	let py = arr[index][1];
-
-	let v1 = getVector(arr[index-1], arr[index])
-	let v2 = getVector(arr[index], arr[index+1])
-
-	let dir = normal_dir(v1.x, v1.y, v2.x, v2.y);
-
-	//this is the tangent vector the point
-	v = v1.copy();
-	v.add(v2);
-
-	// console.log(v);
-	// console.log(v1);
-	// console.log(v2);
-	
-	// console.log("v mag: " + v.mag())
-	// console.log("v1 mag: " + v1.mag())
-	// console.log("v2 mag: " + v2.mag())
-	// let sharpness = v.mag()/(v1.mag() + v2.mag());
-	// console.log(sharpness);
-
-	//rotated 90 degrees clockwise
-	v.rotate(-HALF_PI)
-
-
-	//normalize and adjust direction
-	// v.normalize();
-	v.mult(dir);
-
-	//now v is the normal vector to the curve
-
-	
-
-	// let m = console.log(random(5, 10))
-	//this is the control point
-	return [px + 3*v.x, py + 3*v.y]
-
-
-}
 
 
 function quadColorLerp(p0, p1, p2, t){
@@ -116,6 +84,70 @@ function quadColorLerp(p0, p1, p2, t){
 	
 }
 
+function drawCurve(points, width, show_border, use_background){
+
+	let curve = fitCurve(points, 500)[0]
+
+	let b1 = curve[1]
+	let b2 = curve[2]
+
+	blendMode(BLEND);
+
+	if(show_border){
+		blendMode(BLEND);
+		stroke(0)
+		strokeCap(PROJECT)
+		strokeWeight(width*1.2)
+		noFill();
+		beginShape();
+		vertex(...curve[0]);
+		bezierVertex(...b1, ...b2, ...curve[3]);
+		endShape();
+	}
+
+	// stroke(255, 0, 0)
+	let t = (curve[0][0]+curve[0][1])/(2*size)
+	// let t = nnoise(curve[0][0], curve[0][1])
+	// console.log(t);
+	stroke(quadColorLerp(c0, c1, c2, t+Math.random()*0.2-0.1));
+	// stroke(color(Math.random()*100, 50, 100))
+	strokeCap(SQUARE)
+	strokeWeight(width)
+
+	if(use_background){
+		stroke(BACKGROUND_COLOR);
+		strokeWeight(width*0.5)
+	}
+
+	noFill();
+	beginShape();
+	vertex(...curve[0]);
+	bezierVertex(...b1, ...b2, ...curve[3]);
+	endShape();
+}
+
+function subdivide(points){
+	let subdivisions = [];
+
+	let start = 0;
+	let end = 4;
+
+	while(end < points.length-3){
+		if(Math.random() < 0.025){
+			subdivisions.push(points.slice(start, end))
+			start = end - 1;
+			end = start + 4;
+		}
+		else{
+			end += 1;
+		}
+	}
+
+	subdivisions.push(points.slice(start));
+	// console.log(subdivisions)
+	return subdivisions;
+}
+
 function draw() {
 	// put drawing code here
 	// background(220);
@@ -123,7 +155,7 @@ function draw() {
 	// 	noLoop();
 	// }
 	stroke(255, 0, 0);
-	strokeWeight(random(5, 20));
+	strokeWeight(random(3, 15));
 
 	let x = floor(random(-0.1*size, size*1.1));
 	let y = floor(random(-0.1*size, size*1.1));
@@ -132,8 +164,6 @@ function draw() {
 	//sample points to get bezier curve
 	let sample_size = 47;
 	let length = random(0.5, 2)
-	// let first_stop = Math.floor((sample_size-2)/3)
-	// let second_stop = Math.floor(2*(sample_size-2)/3)
 
 	let samples = [[x,y]];
 
@@ -147,45 +177,41 @@ function draw() {
 		samples.push([x, y]);
 	}
 
+	let width = random(5, 20);
 
-	// let b1 = getControlPoint(first_stop, samples);
-	// let b2 = getControlPoint(second_stop, samples);
+	loadPixels();
+	let before = [...pixels]
+	drawCurve(samples, width, false, true);
+	loadPixels();
+	let after = [...pixels]
+	// console.log(pixels)
+	// console.log(after.pixels)
 
-	// console.log(samples);
-	let curve = fitCurve(samples, 50)[0]
-	// console.log(curve)
+	if(!_.isEqual(before, after)){
+		clear();
+		background(BACKGROUND_COLOR);
+		// set(before)
+		// pixels = [...before];
+		for(let i = 0; i < pixels.length; i++){
+			pixels[i] = before[i];
+		}
+		updatePixels();
+		console.log("yo")
 
-	let b1 = curve[1]
-	let b2 = curve[2]
+	}
+	else{
 
 
-	let a = random(5, 20)
+		// drawCurve(samples, width, true, true)
 
-	stroke(0)
-	strokeCap(PROJECT)
-	strokeWeight(a*1.2)
-	noFill();
-	beginShape();
-	vertex(...curve[0]);
-	bezierVertex(...b1, ...b2, ...curve[3]);
-	endShape();
+		let subdivisions = subdivide(samples)
 
-	let c0 = color(86, 50, 100);
-	let c1 = color(60, 50, 100);
-	let c2 = color(44, 50, 100);
-
-	// stroke(255, 0, 0)
-	let t = (curve[0][0]+curve[0][1])/(2*size)
-	// stroke(quadColorLerp(c0, c1, c2, t));
-	stroke(color(Math.random()*100, 50, 100))
-	strokeCap(PROJECT)
-	strokeWeight(a)
-
-	noFill();
-	beginShape();
-	vertex(...curve[0]);
-	bezierVertex(...b1, ...b2, ...curve[3]);
-	endShape();
-
-	// noLoop();
+		drawCurve(samples, width)
+		subdivisions.map(curve_part => drawCurve(curve_part, width, false, false))
+		
+		// noLoop();
+	}
+	//ensures garbage collection
+	before = null;
+	after = null;
 }
