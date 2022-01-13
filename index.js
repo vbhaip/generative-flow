@@ -2,18 +2,67 @@
 
 let size = 500;
 
-let NOISE_ZOOM = size*0.5;
-
 let FPS = 20
-let TOTAL_TIME = 10
 
-let seed = Math.floor(Math.random()*1000);
 
-let BACKGROUND_COLOR = 0
+//randomization
+
+//seed for perlin noise
+let seed = Math.floor(Math.random()*10000);
+
+//background color is black or white
+let BACKGROUND_COLOR = Math.random() > 0.5 ? 255 : 0;
+
+//features of color scheme
+let satur = Math.random()*100
+let light = Math.random()*100
+
+//how much perlin noise changes for steps
+//mostly normal, but chance of getting more defined flow field
+let NOISE_ZOOM = size*0.5;
+if(Math.random() < 0.5){
+	NOISE_ZOOM *= (Math.random()*0.8+0.2)
+}
+
+//do we allow shapes to overlap
+let ALLOW_FULL_OVERLAP = Math.random() > 0.5 ? 0 : 1;
+
+//if we do allow shapes to overlap, what's the margin of space that surrounds them
+//positive means we have a margins surrounding them
+let MARGIN = Math.random()*2-1
+
+//should each bezier curve be broken up
+let SHOULD_SUBDIVIDE = Math.random() > 0.7 ? 0 : 1;
+
+//subdivision rate
+let SUBDIVISION_RATE = Math.random()*0.1
+
+//show border around bezier curve, need no subdivisions
+let SHOW_BORDER = Math.random()>0.3 && !SHOULD_SUBDIVIDE ? 1 : 0
+
+//how wide each curve can be
+let low_w = Math.random()*5+3
+let high_w = low_w + Math.random()*15
+let STROKE_WIDTH_BOUNDS = [low_w, high_w]
+
+//how many points to sample off the flow curve for the bezier curve
+let FLOW_SAMPLE = 3*Math.floor(Math.random()*50+2)-2
+
+//how long each line can be
+let low_l = Math.random()
+let high_l = Math.random()+low_l
+let STROKE_LENGTH_BOUNDS = [low_l, high_l]
+
+//falloff for parameter in perlin noise, keeps it at 0.5 (default) most of the time, but gives some deviation
+let NOISE_FALLOFF = Math.min(0.5, Math.random()*0.5)
+
+
 
 let c0;
 let c1;
 let c2;
+
+
 
 function setup() {
 	// put setup code here
@@ -24,7 +73,7 @@ function setup() {
 	// colorMode(HSB, 255)
 
 	// noiseDetail(2, 0.1)
-	noiseDetail(4, 0.5)
+	noiseDetail(4, NOISE_FALLOFF)
 	
 	noiseSeed(seed)
 	console.log("seed: " + seed);
@@ -35,9 +84,10 @@ function setup() {
 	strokeCap(SQUARE)
 	blendMode(BLEND)
 
-	c0 = color(Math.random()*100, Math.random()*100, 100);
-	c1 = color(Math.random()*100, Math.random()*100, 100);
-	c2 = color(Math.random()*100, Math.random()*100, 100);
+
+	c0 = color(Math.random()*100, satur, light);
+	c1 = color(Math.random()*100, satur, light);
+	c2 = color(Math.random()*100, satur, light);
 }
 
 
@@ -84,7 +134,7 @@ function quadColorLerp(p0, p1, p2, t){
 	
 }
 
-function drawCurve(points, width, show_border, use_background){
+function drawCurve(points, width, use_background){
 
 	let curve = fitCurve(points, 500)[0]
 
@@ -93,9 +143,9 @@ function drawCurve(points, width, show_border, use_background){
 
 	blendMode(BLEND);
 
-	if(show_border){
+	if(SHOW_BORDER){
 		blendMode(BLEND);
-		stroke(0)
+		stroke(255-BACKGROUND_COLOR)
 		strokeCap(PROJECT)
 		strokeWeight(width*1.2)
 		noFill();
@@ -106,17 +156,21 @@ function drawCurve(points, width, show_border, use_background){
 	}
 
 	// stroke(255, 0, 0)
-	let t = (curve[0][0]+curve[0][1])/(2*size)
-	// let t = nnoise(curve[0][0], curve[0][1])
+	// let t = (curve[0][0]+curve[0][1])/(2*size)
+	let t = nnoise(curve[0][0], curve[0][1])
 	// console.log(t);
-	stroke(quadColorLerp(c0, c1, c2, t+Math.random()*0.2-0.1));
+	stroke(quadColorLerp(c0, c1, c2, t+Math.random()*0.1-0.05));
 	// stroke(color(Math.random()*100, 50, 100))
-	strokeCap(SQUARE)
+
+	if(!SHOW_BORDER){
+		//if we aren't showing the border, then we can change back to square because it makes subdivisions show smoother
+		strokeCap(SQUARE)
+	}
 	strokeWeight(width)
 
 	if(use_background){
 		stroke(BACKGROUND_COLOR);
-		strokeWeight(width*0.5)
+		strokeWeight(width*(1+MARGIN))
 	}
 
 	noFill();
@@ -133,7 +187,7 @@ function subdivide(points){
 	let end = 4;
 
 	while(end < points.length-3){
-		if(Math.random() < 0.025){
+		if(Math.random() < SUBDIVISION_RATE){
 			subdivisions.push(points.slice(start, end))
 			start = end - 1;
 			end = start + 4;
@@ -149,21 +203,20 @@ function subdivide(points){
 }
 
 function draw() {
-	// put drawing code here
-	// background(220);
-	// if(frameCount >= TOTAL_TIME*FPS+5){
-	// 	noLoop();
-	// }
+
 	stroke(255, 0, 0);
-	strokeWeight(random(3, 15));
+	strokeWeight(random(...STROKE_WIDTH_BOUNDS));
 
 	let x = floor(random(-0.1*size, size*1.1));
 	let y = floor(random(-0.1*size, size*1.1));
 
 	
 	//sample points to get bezier curve
-	let sample_size = 47;
-	let length = random(0.5, 2)
+	let sample_size = FLOW_SAMPLE;
+	// let length = random(0.5, 2)
+
+	//adjustment so that stroke length bounds isn't affected by sample_size
+	let length = random(...STROKE_LENGTH_BOUNDS)*80.0/sample_size
 
 	let samples = [[x,y]];
 
@@ -177,11 +230,13 @@ function draw() {
 		samples.push([x, y]);
 	}
 
-	let width = random(5, 20);
+	let width = random(...STROKE_WIDTH_BOUNDS);
 
 	loadPixels();
 	let before = [...pixels]
-	drawCurve(samples, width, false, true);
+	if(!ALLOW_FULL_OVERLAP){
+		drawCurve(samples, width, true);
+	}
 	loadPixels();
 	let after = [...pixels]
 	// console.log(pixels)
@@ -196,18 +251,21 @@ function draw() {
 			pixels[i] = before[i];
 		}
 		updatePixels();
-		console.log("yo")
+		console.log("skipping iteration")
 
 	}
 	else{
 
 
-		// drawCurve(samples, width, true, true)
+		if(SHOULD_SUBDIVIDE){
+			let subdivisions = subdivide(samples)
 
-		let subdivisions = subdivide(samples)
-
-		drawCurve(samples, width)
-		subdivisions.map(curve_part => drawCurve(curve_part, width, false, false))
+			drawCurve(samples, width)
+			subdivisions.map(curve_part => drawCurve(curve_part, width, false))
+		}
+		else{
+			drawCurve(samples, width, false)
+		}
 		
 		// noLoop();
 	}
