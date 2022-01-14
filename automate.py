@@ -24,7 +24,7 @@ for i in range(0, 60):
 	time.sleep(20)
 	tot_time += 20
 
-	while(count() < curr+7 or tot_time > 300):
+	while(count() < curr+7 or tot_time > 600):
 		print("Process has been running for " + str(tot_time) + " seconds...")
 		time.sleep(10)
 		tot_time += 10
