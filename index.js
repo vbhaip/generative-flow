@@ -2,7 +2,7 @@
 
 let size = 500;
 
-let FPS = 20
+let FPS = 30
 
 
 //randomization
@@ -14,8 +14,19 @@ let seed = Math.floor(Math.random()*10000);
 let BACKGROUND_COLOR = Math.random() > 0.5 ? 255 : 0;
 
 //features of color scheme
-let satur = Math.random()*100
-let light = Math.random()*100
+let satur = Math.random()*50+50
+let light = Math.random()*50+50
+
+let c0_hue = Math.random()*100
+let c1_hue = Math.random()*100
+let c2_hue = Math.random()*100
+
+//if 0 color based off perlin noise and location, 1 color based off direction of flow line, if 2 color off location of flow line, if 3 color randomly
+let COLOR_METHOD = Math.floor(Math.random()*4)
+
+
+//transparency is opaque half the time, and the other half is just random
+let ALPHA = Math.random() > 0.5 ? Math.random()*70+30 : 100
 
 //how much perlin noise changes for steps
 //mostly normal, but chance of getting more defined flow field
@@ -32,7 +43,7 @@ let ALLOW_FULL_OVERLAP = Math.random() > 0.5 ? 0 : 1;
 let MARGIN = Math.random()*2-1
 
 //should each bezier curve be broken up
-let SHOULD_SUBDIVIDE = Math.random() > 0.7 ? 0 : 1;
+let SHOULD_SUBDIVIDE = Math.random() > 0.5 ? 0 : 1;
 
 //subdivision rate
 let SUBDIVISION_RATE = Math.random()*0.1
@@ -56,7 +67,17 @@ let STROKE_LENGTH_BOUNDS = [low_l, high_l]
 //falloff for parameter in perlin noise, keeps it at 0.5 (default) most of the time, but gives some deviation
 let NOISE_FALLOFF = Math.min(0.5, Math.random()*0.5)
 
+let round = (num) => Math.round(num*100)*1.0/100
 
+let SETTINGS = seed + "_" + round(satur) + "_" + round(light) + "_" + round(c0_hue) + "_" + round(c1_hue) + "_" + round(c2_hue) + "_" +
+round(NOISE_ZOOM) + "_" + ALLOW_FULL_OVERLAP + "_" + round(MARGIN) + 
+"_" + SHOULD_SUBDIVIDE + "_" + round(SUBDIVISION_RATE) + "_" + SHOW_BORDER + "_" + round(STROKE_WIDTH_BOUNDS[0]) + "_" + 
+round(STROKE_WIDTH_BOUNDS[1])  + "_" + FLOW_SAMPLE + "_" + round(STROKE_LENGTH_BOUNDS[0]) + "_" + round(STROKE_LENGTH_BOUNDS[1]) 
++ "_" + round(NOISE_FALLOFF)
+
+
+
+console.log(SETTINGS)
 
 let c0;
 let c1;
@@ -85,9 +106,9 @@ function setup() {
 	blendMode(BLEND)
 
 
-	c0 = color(Math.random()*100, satur, light);
-	c1 = color(Math.random()*100, satur, light);
-	c2 = color(Math.random()*100, satur, light);
+	c0 = color(c0_hue, satur, light);
+	c1 = color(c1_hue, satur, light);
+	c2 = color(c2_hue, satur, light);
 }
 
 
@@ -129,7 +150,10 @@ function getVector(p1, p2){
 function quadColorLerp(p0, p1, p2, t){
 	p3 = lerpColor(p0, p1, t)
 	p4 = lerpColor(p1, p2, t)
-	return lerpColor(p3, p4, t)
+
+	let bezier_color = lerpColor(p3, p4, t)
+	bezier_color.setAlpha(ALPHA)
+	return bezier_color
 
 	
 }
@@ -155,12 +179,43 @@ function drawCurve(points, width, use_background){
 		endShape();
 	}
 
-	// stroke(255, 0, 0)
-	// let t = (curve[0][0]+curve[0][1])/(2*size)
-	let t = nnoise(curve[0][0], curve[0][1])
-	// console.log(t);
-	stroke(quadColorLerp(c0, c1, c2, t+Math.random()*0.1-0.05));
-	// stroke(color(Math.random()*100, 50, 100))
+
+	//perlin noise location
+	if(COLOR_METHOD == 0){
+		// stroke(255, 0, 0)
+		// let t = (curve[0][0]+curve[0][1])/(2*size)
+		let t = nnoise(curve[0][0], curve[0][1])
+		// console.log(t);
+		stroke(quadColorLerp(c0, c1, c2, t+Math.random()*0.1-0.05));
+		// stroke(color(Math.random()*100, 50, 100))
+	}
+	//direction of flow line
+	else if(COLOR_METHOD == 1){
+
+		let dy = curve[curve.length - 1][1] - curve[0][1]
+		let dx = curve[curve.length - 1][0] - curve[0][0]
+
+		let angle = atan2(dy, dx)
+
+		//normalizes it 0 to 1
+		angle = (angle+PI)/(2*PI)
+		
+		stroke(quadColorLerp(c0, c1, c2, angle+Math.random()*0.1-0.05))
+	}
+	else if(COLOR_METHOD == 2){
+
+		let x = curve[0][0]
+		let y = curve[0][1]
+
+		let loc = ((x - size/2)**2 + (y-size/2)**2)/(size**2)
+
+		stroke(quadColorLerp(c0, c1, c2, loc))
+
+	}
+	else if(COLOR_METHOD == 3){
+		stroke(quadColorLerp(c0, c1, c2, Math.random()))
+	}
+
 
 	if(!SHOW_BORDER){
 		//if we aren't showing the border, then we can change back to square because it makes subdivisions show smoother
@@ -272,4 +327,12 @@ function draw() {
 	//ensures garbage collection
 	before = null;
 	after = null;
+	// console.log(frameCount)
+
+	if(frameCount >= 100 && frameCount % 400 == 0){
+		saveCanvas("bezier-flow_" + SETTINGS + "__" + frameCount + ".png")
+	}
+	if(frameCount >= 4000){
+		noLoop();
+	}
 }
